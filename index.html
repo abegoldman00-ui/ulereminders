@@ -392,6 +392,7 @@ function isIncoming(t){
 
 // ---------- "new activity" tracking (per-tile last-seen, stored locally) ----------
 let seen={}, seenInit=false;
+let openDocs=[];
 function loadSeen(){ try{const s=localStorage.getItem('ule-seen'); if(s){seen=JSON.parse(s); seenInit=true;} else {seen={}; seenInit=false;}}catch(e){seen={}; seenInit=false;} }
 function saveSeen(){ try{localStorage.setItem('ule-seen',JSON.stringify(seen));}catch(e){} }
 function markSeen(id){ const t=tiles.find(x=>x.id===id); if(t){ seen[id]=t.updated_at; saveSeen(); } }
@@ -555,6 +556,7 @@ async function openTile(id){
     sbGet('messages',`tile_id=eq.${id}&select=*&order=created_at.asc`),
     sbGet('attachments',`tile_id=eq.${id}&select=*&order=created_at.asc`)
   ]);
+  openDocs=docs;
   const canDelete=currentUser.role==='admin';
   modal(`
     <div class="modal-head">
@@ -585,7 +587,9 @@ async function openTile(id){
       <div class="docs" id="docList">
         ${docs.length?docs.map(d=>`
           <div class="doc">📎 <a href="${SB_URL}/storage/v1/object/public/tile-docs/${encodeURIComponent(d.file_path)}" target="_blank">${esc(d.file_name)}</a>
-          <span class="dmeta">${esc(d.uploaded_by_username||'')} · ${timeAgo(d.created_at)}</span></div>`).join('')
+          <span class="dmeta">${esc(d.uploaded_by_username||'')} · ${timeAgo(d.created_at)}</span>
+          ${(currentUser.role==='admin'||d.uploaded_by_username===currentUser.username)?`<button class="x" title="delete document" style="margin-left:8px" onclick="deleteDoc('${t.id}','${d.id}')">×</button>`:''}
+          </div>`).join('')
           :'<div style="color:var(--text3);font-size:13px">No documents yet.</div>'}
       </div>
       <div class="uploadbox" onclick="document.getElementById('fileIn').click()" id="dropbox">
@@ -655,6 +659,17 @@ async function uploadDoc(id){
   toast('Document uploaded');
 }
 
+async function deleteDoc(tileId,attId){
+  const d=openDocs.find(x=>x.id===attId); if(!d)return;
+  if(!confirm(`Delete "${d.file_name}"? This cannot be undone.`))return;
+  try{ await fetch(`${SB_URL}/storage/v1/object/tile-docs/${encodeURIComponent(d.file_path)}`,{method:'DELETE',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY}}); }catch(e){}
+  await sbDelete('attachments',`id=eq.${attId}`);
+  const now=new Date().toISOString();
+  await sbPatch('tiles',tileId,{updated_at:now}); seen[tileId]=now; saveSeen();
+  await loadAll(); openTile(tileId);
+  toast('Document deleted');
+}
+
 async function deleteTile(id){
   if(!confirm('Delete this tile, its messages and documents? This cannot be undone.'))return;
   await sbDelete('messages',`tile_id=eq.${id}`);
@@ -685,16 +700,32 @@ async function notify(tile,subject,htmlBody){
 async function openAdmin(){
   const users=await sbGet('users','select=*&order=created_at.asc');
   const invites=await sbGet('invites','used_at=is.null&select=*&order=created_at.desc');
+  const members=users.filter(u=>u.role!=='contact');
+  const contacts=users.filter(u=>u.role==='contact');
   modal(`
     <div class="modal-head"><h2>Admin panel</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="section-label" style="margin-top:0">Team members</div>
-      ${users.map(u=>`<div class="urow">
+      ${members.map(u=>`<div class="urow">
         <div class="av">${u.username[0].toUpperCase()}</div>
         <div><div style="font-weight:600">${esc(u.username)}</div><div style="font-size:12px;color:var(--text3)">${esc(u.email||'no email')}</div></div>
         <span class="rolepill" style="margin-left:auto">${u.role}</span>
         ${u.id!==currentUser.id?`<button class="x" title="remove" onclick="removeUser('${u.id}')">×</button>`:''}
       </div>`).join('')}
+
+      <div class="section-label">External contacts <span style="text-transform:none;letter-spacing:0;font-weight:500;color:var(--text3)">— notify-only, no login</span></div>
+      ${contacts.length?contacts.map(u=>`<div class="urow">
+        <div class="av">${(u.username[0]||'?').toUpperCase()}</div>
+        <div><div style="font-weight:600">${esc(u.username)}</div><div style="font-size:12px;color:var(--text3)">${esc(u.email||'no email')}</div></div>
+        <span class="rolepill" style="margin-left:auto">contact</span>
+        <button class="x" title="remove" onclick="removeUser('${u.id}')">×</button>
+      </div>`).join(''):'<div style="color:var(--text3);font-size:13px">No external contacts yet.</div>'}
+      <div class="row2" style="margin-top:10px">
+        <input id="c-name" placeholder="Name" style="padding:11px 13px;border:1px solid var(--border2);border-radius:10px;background:var(--inset);color:var(--text);outline:none">
+        <input id="c-email" type="email" placeholder="email@company.com" style="padding:11px 13px;border:1px solid var(--border2);border-radius:10px;background:var(--inset);color:var(--text);outline:none">
+      </div>
+      <button class="btn btn-ghost" style="width:auto;margin-top:8px" onclick="addContact()">＋ Add contact</button>
+
       <div class="section-label">Invite a new member</div>
       <button class="btn btn-ghost" style="width:auto" onclick="genInvite()">Generate invite link</button>
       <div id="inviteList">
@@ -702,6 +733,15 @@ async function openAdmin(){
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-primary" style="width:auto" onclick="closeModal()">Done</button></div>`);
+}
+async function addContact(){
+  const name=val('c-name').trim(), email=val('c-email').trim();
+  if(!name||!email)return toast('Name and email required');
+  const exists=await sbGet('users',`username=eq.${encodeURIComponent(name)}&select=id`);
+  if(exists.length)return toast('That name is already taken');
+  const made=await sbPost('users',{username:name,email,password_hash:'no-login',role:'contact'});
+  if(!made)return toast('Could not add contact');
+  await loadAll(); openAdmin(); toast('Contact added');
 }
 async function genInvite(){
   const token=crypto.randomUUID();
