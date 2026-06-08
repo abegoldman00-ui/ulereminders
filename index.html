@@ -227,7 +227,7 @@ input,textarea,select{font-family:inherit;font-size:15px}
     <div id="regView" class="hidden">
       <p class="sub">You've been invited. Create your account.</p>
       <div class="field"><label>Username</label><input id="rg-user"></div>
-      <div class="field"><label>Email <span style="color:var(--text3)">(for notifications)</span></label><input id="rg-email" type="email"></div>
+      <div class="field"><label>Email * <span style="color:var(--text3)">(for notifications)</span></label><input id="rg-email" type="email" required></div>
       <div class="field"><label>Password</label><input id="rg-pass" type="password"></div>
       <button class="btn btn-primary" onclick="doRegister()">Create account</button>
       <div class="err" id="rg-err"></div>
@@ -336,6 +336,8 @@ async function doRegister(){
   const tok=new URLSearchParams(location.search).get('invite');
   const u=val('rg-user').trim(), e=val('rg-email').trim(), p=val('rg-pass');
   if(!u||!p){return setErr('rg-err','Username and password required')}
+  if(!e){return setErr('rg-err','Email is required')}
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){return setErr('rg-err','Enter a valid email address')}
   const inv=await sbGet('invites',`token=eq.${tok}&used_at=is.null&select=*`);
   if(!inv.length){return setErr('rg-err','Invite is invalid or already used')}
   const exists=await sbGet('users',`username=eq.${encodeURIComponent(u)}&select=id`);
