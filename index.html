@@ -128,6 +128,10 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .tile-foot span{display:inline-flex;align-items:center;gap:4px}
 .tag{font-size:11px;background:var(--accent-bg);color:var(--accent);padding:2px 8px;border-radius:5px;
   border:1px solid var(--accent-border);font-weight:600}
+.tile-badges{display:flex;gap:6px;align-items:center;flex:none}
+.new-pill{font-size:10.5px;font-weight:800;padding:3px 7px;border-radius:6px;background:var(--accent);
+  color:#fff;letter-spacing:.3px;white-space:nowrap}
+.tile.isnew{border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent-border),var(--shadow)}
 .empty{text-align:center;padding:80px 20px;color:var(--text3)}
 .empty .big{font-family:'Fraunces';font-size:22px;color:var(--text2);margin-bottom:8px}
 
@@ -352,13 +356,20 @@ async function enterApp(){
   document.getElementById('me-role').textContent=currentUser.role;
   document.getElementById('me-av').textContent=currentUser.username[0].toUpperCase();
   if(currentUser.role==='admin')document.getElementById('adminBtn').classList.remove('hidden');
+  loadSeen();
   await loadAll();
   setInterval(loadAll,30000); // poll for real-time-ish sync
 }
 
 async function loadAll(){
+  const oldMap={}; tiles.forEach(t=>oldMap[t.id]=t.updated_at);
   tiles=await sbGet('tiles','select=*&order=updated_at.desc');
   usersCache=await sbGet('users','select=username,email');
+  if(!seenInit){ tiles.forEach(t=>{seen[t.id]=t.updated_at}); seenInit=true; saveSeen(); }
+  else {
+    const fresh=tiles.filter(t=>oldMap[t.id]!==t.updated_at && isNew(t));
+    if(fresh.length){ toast(`🔔 New activity on ${fresh.length} tile${fresh.length>1?'s':''}`); }
+  }
   buildFilterOptions();
   render();
 }
@@ -378,6 +389,13 @@ function isIncoming(t){
   const isPerson=!!uname&&(t.person||'').toLowerCase()===uname;
   return inWatchers||isPerson;
 }
+
+// ---------- "new activity" tracking (per-tile last-seen, stored locally) ----------
+let seen={}, seenInit=false;
+function loadSeen(){ try{const s=localStorage.getItem('ule-seen'); if(s){seen=JSON.parse(s); seenInit=true;} else {seen={}; seenInit=false;}}catch(e){seen={}; seenInit=false;} }
+function saveSeen(){ try{localStorage.setItem('ule-seen',JSON.stringify(seen));}catch(e){} }
+function markSeen(id){ const t=tiles.find(x=>x.id===id); if(t){ seen[id]=t.updated_at; saveSeen(); } }
+function isNew(t){ if(seen[t.id]===undefined) return true; return new Date(t.updated_at) > new Date(seen[t.id]); }
 
 function buildFilterOptions(){
   const jobs=[...new Set(tiles.map(t=>t.job).filter(Boolean))].sort();
@@ -414,10 +432,13 @@ function render(){
   const g=document.getElementById('grid');
   if(!list.length){g.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="big">No tiles here yet</div><div>Create one with the “＋ New tile” button.</div></div>`;return;}
   g.innerHTML=list.map(t=>`
-    <div class="tile" data-s="${t.status}" onclick="openTile('${t.id}')">
+    <div class="tile ${isNew(t)?'isnew':''}" data-s="${t.status}" onclick="openTile('${t.id}')">
       <div class="tile-top">
         <h3>${esc(t.title)}</h3>
-        <span class="status-pill s-${t.status}">${statusLabel(t.status)}</span>
+        <div class="tile-badges">
+          ${isNew(t)?'<span class="new-pill">● New</span>':''}
+          <span class="status-pill s-${t.status}">${statusLabel(t.status)}</span>
+        </div>
       </div>
       ${t.description?`<div class="tile-desc">${esc(t.description)}</div>`:''}
       <div class="meta-row">
@@ -512,12 +533,14 @@ async function saveTile(id){
   if(id){
     const prev=tiles.find(t=>t.id===id);
     await sbPatch('tiles',id,body);
+    seen[id]=body.updated_at; saveSeen();
     closeModal(); await loadAll(); openTile(id);
     if(prev&&prev.status!==body.status)
       notify(body,`Status changed to “${statusLabel(body.status)}”`,`${currentUser.username} updated this tile's status to ${statusLabel(body.status)}.`);
   }else{
     body.created_by_username=currentUser.username;
     const made=await sbPost('tiles',body);
+    if(made&&made[0]){ seen[made[0].id]=body.updated_at; saveSeen(); }
     closeModal(); await loadAll();
     if(made)notify(body,'New tile created',`${currentUser.username} created a new reminder: “${title}”.`);
     toast('Tile created');
@@ -527,6 +550,7 @@ async function saveTile(id){
 // ---------- tile detail (thread + docs) ----------
 async function openTile(id){
   const t=tiles.find(x=>x.id===id); if(!t)return;
+  markSeen(id); render();
   const [msgs,docs]=await Promise.all([
     sbGet('messages',`tile_id=eq.${id}&select=*&order=created_at.asc`),
     sbGet('attachments',`tile_id=eq.${id}&select=*&order=created_at.asc`)
@@ -593,7 +617,9 @@ async function openTile(id){
 
 async function quickStatus(id){
   const t=tiles.find(x=>x.id===id); const s=val('d-status'); if(t.status===s)return;
-  await sbPatch('tiles',id,{status:s,updated_at:new Date().toISOString()});
+  const now=new Date().toISOString();
+  await sbPatch('tiles',id,{status:s,updated_at:now});
+  seen[id]=now; saveSeen();
   const updated={...t,status:s};
   await loadAll();
   notify(updated,`Status: ${statusLabel(s)}`,`${currentUser.username} set “${t.title}” to ${statusLabel(s)}.`);
@@ -604,7 +630,9 @@ async function sendMsg(id){
   const body=val('msgIn').trim(); if(!body)return;
   const t=tiles.find(x=>x.id===id);
   await sbPost('messages',{tile_id:id,author_username:currentUser.username,body});
-  await sbPatch('tiles',id,{updated_at:new Date().toISOString()});
+  const now=new Date().toISOString();
+  await sbPatch('tiles',id,{updated_at:now});
+  seen[id]=now; saveSeen();
   document.getElementById('msgIn').value='';
   await loadAll(); openTile(id);
   notify(t,`New message on “${t.title}”`,`<b>${currentUser.username}</b> wrote:<br><br>${esc(body)}`);
@@ -619,7 +647,9 @@ async function uploadDoc(id){
   if(!up.ok){toast('Upload failed');return}
   await sbPost('attachments',{tile_id:id,file_name:f.name,file_path:path,uploaded_by_username:currentUser.username});
   const t=tiles.find(x=>x.id===id);
-  await sbPatch('tiles',id,{updated_at:new Date().toISOString()});
+  const now=new Date().toISOString();
+  await sbPatch('tiles',id,{updated_at:now});
+  seen[id]=now; saveSeen();
   await loadAll(); openTile(id);
   notify(t,`Document added to “${t.title}”`,`${currentUser.username} uploaded <b>${esc(f.name)}</b>.`);
   toast('Document uploaded');
