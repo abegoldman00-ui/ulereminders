@@ -132,6 +132,9 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .new-pill{font-size:10.5px;font-weight:800;padding:3px 7px;border-radius:6px;background:var(--accent);
   color:#fff;letter-spacing:.3px;white-space:nowrap}
 .tile.isnew{border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent-border),var(--shadow)}
+.due-pill{font-size:10.5px;font-weight:800;padding:3px 7px;border-radius:6px;white-space:nowrap}
+.due-pill.overdue{background:var(--accent);color:#fff}
+.due-pill.soon{background:var(--open-bg);color:var(--open);border:1px solid var(--open-bd)}
 .empty{text-align:center;padding:80px 20px;color:var(--text3)}
 .empty .big{font-family:'Fraunces';font-size:22px;color:var(--text2);margin-bottom:8px}
 
@@ -274,6 +277,11 @@ input,textarea,select{font-family:inherit;font-size:15px}
       <div class="filters">
         <select id="jobFilter" onchange="render()"><option value="">All jobs</option></select>
         <select id="personFilter" onchange="render()"><option value="">All people</option></select>
+        <select id="sortFilter" onchange="render()">
+          <option value="updated">Sort: Recently updated</option>
+          <option value="due">Sort: Due date</option>
+        </select>
+        <button class="chip" id="overdueChip" onclick="toggleOverdue(this)">⚠ Overdue</button>
         <div class="spacer"></div>
       </div>
       <div id="grid" class="grid"></div>
@@ -310,6 +318,7 @@ function hashPassword(p){const s=p+SALT;let h1=5381,h2=52711;for(let i=0;i<s.len
 let currentUser=null, tiles=[], usersCache=[];
 let statusFilter='all';
 let ownerFilter='all';
+let overdueOnly=false;
 
 async function doLogin(){
   const u=val('li-user').trim(), p=val('li-pass');
@@ -377,6 +386,20 @@ async function loadAll(){
 // ---------- filters / rendering ----------
 function setStatusFilter(s,el){statusFilter=s;document.querySelectorAll('.nav-item[data-status]').forEach(n=>n.classList.remove('active'));el.classList.add('active');render();}
 function setOwnerFilter(o,el){ownerFilter=o;document.querySelectorAll('.nav-item[data-owner]').forEach(n=>n.classList.remove('active'));el.classList.add('active');render();}
+function toggleOverdue(el){overdueOnly=!overdueOnly;el.classList.toggle('on',overdueOnly);render();}
+
+// Due-date state relative to today (ignores completed tiles).
+function dueState(t){
+  if(!t.due_date||t.status==='done')return '';
+  const today=new Date(); today.setHours(0,0,0,0);
+  const due=new Date(t.due_date+'T00:00:00');
+  if(isNaN(due))return '';
+  const days=Math.round((due-today)/86400000);
+  if(days<0)return 'overdue';
+  if(days<=2)return 'soon';
+  return '';
+}
+function dueBadge(t){const ds=dueState(t);if(ds==='overdue')return '<span class="due-pill overdue">⚠ Overdue</span>';if(ds==='soon')return '<span class="due-pill soon">⏰ Due soon</span>';return '';}
 
 // A tile is "outgoing" if the current user created it.
 function isOutgoing(t){return !!(currentUser&&t.created_by_username&&t.created_by_username.toLowerCase()===currentUser.username.toLowerCase());}
@@ -416,11 +439,14 @@ function render(){
     if(statusFilter!=='all'&&t.status!==statusFilter)return false;
     if(ownerFilter==='outgoing'&&!isOutgoing(t))return false;
     if(ownerFilter==='incoming'&&!isIncoming(t))return false;
+    if(overdueOnly&&dueState(t)!=='overdue')return false;
     if(jf&&t.job!==jf)return false;
     if(pf&&t.person!==pf)return false;
     if(q){const hay=(t.title+' '+(t.description||'')+' '+(t.job||'')+' '+(t.person||'')+' '+(t.tags||[]).join(' ')).toLowerCase();if(!hay.includes(q))return false;}
     return true;
   });
+  const sortEl=document.getElementById('sortFilter');
+  if(sortEl&&sortEl.value==='due'){ list.sort((a,b)=>{ if(!a.due_date&&!b.due_date)return 0; if(!a.due_date)return 1; if(!b.due_date)return -1; return a.due_date.localeCompare(b.due_date); }); }
   // counts
   document.getElementById('c-all').textContent=tiles.length;
   document.getElementById('c-open').textContent=tiles.filter(t=>t.status==='open').length;
@@ -438,6 +464,7 @@ function render(){
         <h3>${esc(t.title)}</h3>
         <div class="tile-badges">
           ${isNew(t)?'<span class="new-pill">● New</span>':''}
+          ${dueBadge(t)}
           <span class="status-pill s-${t.status}">${statusLabel(t.status)}</span>
         </div>
       </div>
