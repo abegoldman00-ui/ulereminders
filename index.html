@@ -391,8 +391,8 @@ async function loadAll(){
   const oldMap={}; tiles.forEach(t=>oldMap[t.id]=t.updated_at);
   tiles=await sbGet('tiles','select=*&order=updated_at.desc');
   usersCache=await sbGet('users','select=username,email');
-  // Members only see tiles they created or are tagged in; admins see everything.
-  if(currentUser && currentUser.role!=='admin'){
+  // Everyone (admins included) only sees tiles they created or are tagged in.
+  if(currentUser){
     tiles=tiles.filter(t=>isOutgoing(t)||isIncoming(t));
   }
   if(!seenInit){ tiles.forEach(t=>{seen[t.id]=t.updated_at}); seenInit=true; saveSeen(); }
