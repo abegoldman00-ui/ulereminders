@@ -221,16 +221,19 @@ input,textarea,select{font-family:inherit;font-size:15px}
       <div class="field"><label>Password</label><input id="li-pass" type="password" autocomplete="current-password"></div>
       <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
       <div class="err" id="li-err"></div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:10px" onclick="showSignup()">Create an account</button>
     </div>
 
     <!-- REGISTER (via invite) -->
     <div id="regView" class="hidden">
-      <p class="sub">You've been invited. Create your account.</p>
+      <p class="sub" id="rg-sub">Create your account.</p>
       <div class="field"><label>Username</label><input id="rg-user"></div>
       <div class="field"><label>Email * <span style="color:var(--text3)">(for notifications)</span></label><input id="rg-email" type="email" required></div>
       <div class="field"><label>Password</label><input id="rg-pass" type="password"></div>
+      <div class="field" id="codeField"><label>Sign-up code</label><input id="rg-code" placeholder="Ask your team for the code"></div>
       <button class="btn btn-primary" onclick="doRegister()">Create account</button>
       <div class="err" id="rg-err"></div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:10px" onclick="showLogin()">Back to sign in</button>
     </div>
   </div>
 </div>
@@ -304,6 +307,7 @@ const SB_KEY  = 'sb_publishable_DdPGqeasUFxNsTddsO7YxQ_Ga1TWUIK';
 const EMAIL_FN = SB_URL + '/functions/v1/send-update';   // edge function for auto-emails
 const APP_URL  = window.location.origin + window.location.pathname; // used in email links
 const SALT = 'ule-salt-2024';
+const SIGNUP_CODE_HASH = '071101fc168e75de'; // hash of the team sign-up code (code itself is shared out-of-band)
 
 const HDR = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'return=representation'};
 
@@ -338,13 +342,21 @@ async function doRegister(){
   if(!u||!p){return setErr('rg-err','Username and password required')}
   if(!e){return setErr('rg-err','Email is required')}
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){return setErr('rg-err','Enter a valid email address')}
-  const inv=await sbGet('invites',`token=eq.${tok}&used_at=is.null&select=*`);
-  if(!inv.length){return setErr('rg-err','Invite is invalid or already used')}
+  let inviteRow=null;
+  if(tok){
+    const inv=await sbGet('invites',`token=eq.${tok}&used_at=is.null&select=*`);
+    if(!inv.length){return setErr('rg-err','Invite is invalid or already used')}
+    inviteRow=inv[0];
+  } else {
+    const code=val('rg-code').trim();
+    if(!code){return setErr('rg-err','Sign-up code required')}
+    if(hashPassword(code)!==SIGNUP_CODE_HASH){return setErr('rg-err','Incorrect sign-up code')}
+  }
   const exists=await sbGet('users',`username=eq.${encodeURIComponent(u)}&select=id`);
   if(exists.length){return setErr('rg-err','Username taken')}
   const made=await sbPost('users',{username:u,email:e,password_hash:hashPassword(p),role:'member'});
   if(!made){return setErr('rg-err','Could not create account')}
-  await sbPatch('invites',inv[0].id,{used_at:new Date().toISOString(),used_by:made[0].id});
+  if(inviteRow) await sbPatch('invites',inviteRow.id,{used_at:new Date().toISOString(),used_by:made[0].id});
   currentUser={id:made[0].id,username:u,email:e,role:'member'};
   localStorage.setItem('ule-session',JSON.stringify(currentUser));
   history.replaceState({},'',APP_URL);
@@ -352,11 +364,13 @@ async function doRegister(){
 }
 
 function logout(){localStorage.removeItem('ule-session');location.reload();}
+function showSignup(){ show('loginView',false); show('regView',true); document.getElementById('codeField').classList.remove('hidden'); document.getElementById('rg-sub').textContent='Create your account.'; setErr('rg-err',''); }
+function showLogin(){ show('regView',false); show('loginView',true); setErr('li-err',''); }
 
 function boot(){
   const theme=localStorage.getItem('ule-theme'); if(theme)document.documentElement.setAttribute('data-theme',theme);
   const inv=new URLSearchParams(location.search).get('invite');
-  if(inv){show('loginView',false);show('regView',true);return;}
+  if(inv){show('loginView',false);show('regView',true);document.getElementById('codeField').classList.add('hidden');document.getElementById('rg-sub').textContent="You've been invited. Create your account.";return;}
   const s=localStorage.getItem('ule-session');
   if(s){currentUser=JSON.parse(s);enterApp();}
 }
