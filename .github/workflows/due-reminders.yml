@@ -1,0 +1,20 @@
+name: Due reminders
+
+# Runs daily at 12:00 UTC ≈ 8am US Eastern (shifts ~1h with daylight saving).
+# Also runnable on demand from the Actions tab (workflow_dispatch).
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger due-reminders edge function
+        run: |
+          curl -fsS -X POST "https://uuqhoavwbsllhjidigwf.supabase.co/functions/v1/due-reminders" \
+            -H "apikey: sb_publishable_DdPGqeasUFxNsTddsO7YxQ_Ga1TWUIK" \
+            -H "Authorization: Bearer sb_publishable_DdPGqeasUFxNsTddsO7YxQ_Ga1TWUIK" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
