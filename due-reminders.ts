@@ -61,14 +61,14 @@ serve(async (req) => {
       if (t.due_date < today) { label = "Overdue"; emoji = "⚠"; }
       else if (t.due_date === today) { label = "Due today"; emoji = "⏰"; }
       const html = `<div style="font-family:sans-serif;max-width:520px;margin:auto">
-        <div style="background:#211f1a;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;font-weight:700">ULEReminders</div>
+        <div style="background:#16243b;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;font-weight:700">ULEReminders</div>
         <div style="border:1px solid #e0dccf;border-top:none;border-radius:0 0 12px 12px;padding:20px">
-          <div style="display:inline-block;background:#b4471f;color:#fff;font-weight:700;font-size:12px;padding:3px 9px;border-radius:6px;margin-bottom:10px">${emoji} ${label}</div>
+          <div style="display:inline-block;background:#2563eb;color:#fff;font-weight:700;font-size:12px;padding:3px 9px;border-radius:6px;margin-bottom:10px">${emoji} ${label}</div>
           <h2 style="margin:0 0 6px">${esc(t.title)}</h2>
           <div style="color:#6c685c;font-size:13px;margin-bottom:10px">${t.job ? "Job: " + esc(t.job) : ""} ${t.person ? " · " + esc(t.person) : ""}</div>
           <div style="font-size:14px;color:#23211c">Due date: <b>${esc(t.due_date)}</b></div>
           ${t.description ? `<div style="font-size:14px;line-height:1.5;margin-top:8px">${esc(t.description)}</div>` : ""}
-          <a href="${APP_URL}" style="display:inline-block;margin-top:16px;background:#b4471f;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Open ULEReminders</a>
+          <a href="${APP_URL}" style="display:inline-block;margin-top:16px;background:#2563eb;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Open ULEReminders</a>
         </div></div>`;
       try {
         await client.send({ from, to: recipients, subject: `${emoji} ${label}: ${t.title}`, content: "Reminder", html });

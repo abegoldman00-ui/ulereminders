@@ -8,25 +8,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#f4f2ec; --surface:#fffdf8; --surface2:#efece3; --inset:#e7e3d8;
-  --border:#e0dccf; --border2:#cdc8b8;
-  --text:#23211c; --text2:#6c685c; --text3:#9c978a;
-  --accent:#b4471f; --accent-bg:#fbeae2; --accent-border:#eec3ad;
+  --bg:#eef2f8; --surface:#ffffff; --surface2:#e9eef6; --inset:#e4e9f2;
+  --border:#dbe2ec; --border2:#c2cdda;
+  --text:#1b2533; --text2:#5a6675; --text3:#8a94a3;
+  --accent:#2563eb; --accent-bg:#e7effd; --accent-border:#bcd4f7;
   --open:#8a5c00; --open-bg:#fbf0d6; --open-bd:#ecd194;
   --prog:#1a5fa8; --prog-bg:#e6f0fa; --prog-bd:#b3d1ee;
   --done:#2d7a3a; --done-bg:#e4f3e7; --done-bd:#a6d6ad;
-  --sidebar:#211f1a; --sidebar-bd:rgba(255,255,255,.08);
-  --shadow:0 1px 2px rgba(40,35,25,.04),0 8px 24px rgba(40,35,25,.06);
+  --sidebar:#16243b; --sidebar-bd:rgba(255,255,255,.08);
+  --shadow:0 1px 2px rgba(20,35,60,.05),0 8px 24px rgba(20,35,60,.08);
 }
 [data-theme="dark"]{
-  --bg:#16150f; --surface:#201e18; --surface2:#2a2820; --inset:#1a1812;
-  --border:#322f26; --border2:#403c30;
-  --text:#f1ede2; --text2:#a8a290; --text3:#6f6a5c;
-  --accent:#e0743f; --accent-bg:#33231a; --accent-border:#5a3a28;
+  --bg:#0e131b; --surface:#172030; --surface2:#1f2a3b; --inset:#121a27;
+  --border:#293548; --border2:#3a4759;
+  --text:#e9eef6; --text2:#9aa6b8; --text3:#687587;
+  --accent:#4f8ef7; --accent-bg:#16263f; --accent-border:#2c4a6e;
   --open:#e0b24a; --open-bg:#2e2716; --open-bd:#4d4322;
   --prog:#5b9ddc; --prog-bg:#152634; --prog-bd:#26425c;
   --done:#5fb56e; --done-bg:#16291a; --done-bd:#27442d;
-  --sidebar:#0e0d09; --sidebar-bd:rgba(255,255,255,.06);
+  --sidebar:#0a1322; --sidebar-bd:rgba(255,255,255,.06);
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.4);
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -193,7 +193,7 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .invite-box{background:var(--inset);border:1px solid var(--border);border-radius:10px;padding:11px;
   font-family:monospace;font-size:12.5px;word-break:break-all;margin-top:10px;display:flex;gap:8px;align-items:center}
 .fab{position:fixed;right:30px;bottom:30px;width:auto;padding:14px 22px;border-radius:30px;
-  background:var(--accent);color:#fff;font-weight:700;box-shadow:0 8px 24px rgba(180,71,31,.4);
+  background:var(--accent);color:#fff;font-weight:700;box-shadow:0 8px 24px rgba(37,99,235,.4);
   display:flex;align-items:center;gap:8px;z-index:30;transition:.15s}
 .fab:hover{transform:translateY(-2px) scale(1.02)}
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--text);
@@ -716,12 +716,12 @@ async function notify(tile,subject,htmlBody){
   const to=(tile.watchers||[]).filter(Boolean);
   if(!to.length)return;
   const html=`<div style="font-family:sans-serif;max-width:520px;margin:auto">
-    <div style="background:#211f1a;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;font-weight:700">ULEReminders</div>
+    <div style="background:#16243b;color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;font-weight:700">ULEReminders</div>
     <div style="border:1px solid #e0dccf;border-top:none;border-radius:0 0 12px 12px;padding:20px">
       <h2 style="margin:0 0 6px">${esc(tile.title)}</h2>
       <div style="color:#6c685c;font-size:13px;margin-bottom:14px">${tile.job?'Job: '+esc(tile.job):''} ${tile.person?' · '+esc(tile.person):''}</div>
       <div style="font-size:15px;line-height:1.6">${htmlBody}</div>
-      <a href="${APP_URL}" style="display:inline-block;margin-top:18px;background:#b4471f;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Open ULEReminders</a>
+      <a href="${APP_URL}" style="display:inline-block;margin-top:18px;background:#2563eb;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Open ULEReminders</a>
     </div></div>`;
   try{
     await fetch(EMAIL_FN,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},
