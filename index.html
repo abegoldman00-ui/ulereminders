@@ -135,6 +135,7 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .due-pill{font-size:10.5px;font-weight:800;padding:3px 7px;border-radius:6px;white-space:nowrap}
 .due-pill.overdue{background:var(--accent);color:#fff}
 .due-pill.soon{background:var(--open-bg);color:var(--open);border:1px solid var(--open-bd)}
+.tile-last{font-size:12px;color:var(--text2)}
 .empty{text-align:center;padding:80px 20px;color:var(--text3)}
 .empty .big{font-family:'Fraunces';font-size:22px;color:var(--text2);margin-bottom:8px}
 
@@ -475,6 +476,7 @@ function render(){
         ${t.due_date?`<span class="meta">📅 ${esc(t.due_date)}</span>`:''}
       </div>
       ${(t.tags&&t.tags.length)?`<div class="meta-row">${t.tags.map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div>`:''}
+      ${t.last_action?`<div class="tile-last">${esc(t.last_action)}</div>`:''}
       <div class="tile-foot">
         <span>🕑 ${timeAgo(t.updated_at)}</span>
         ${(t.watchers&&t.watchers.length)?`<span>✉ ${t.watchers.length} watching</span>`:''}
@@ -560,6 +562,7 @@ async function saveTile(id){
   };
   if(id){
     const prev=tiles.find(t=>t.id===id);
+    body.last_action='✏️ Edited · '+currentUser.username;
     await sbPatch('tiles',id,body);
     seen[id]=body.updated_at; saveSeen();
     closeModal(); await loadAll(); openTile(id);
@@ -567,6 +570,7 @@ async function saveTile(id){
       notify(body,`Status changed to “${statusLabel(body.status)}”`,`${currentUser.username} updated this tile's status to ${statusLabel(body.status)}.`);
   }else{
     body.created_by_username=currentUser.username;
+    body.last_action='🆕 Created · '+currentUser.username;
     const made=await sbPost('tiles',body);
     if(made&&made[0]){ seen[made[0].id]=body.updated_at; saveSeen(); }
     closeModal(); await loadAll();
@@ -649,7 +653,7 @@ async function openTile(id){
 async function quickStatus(id){
   const t=tiles.find(x=>x.id===id); const s=val('d-status'); if(t.status===s)return;
   const now=new Date().toISOString();
-  await sbPatch('tiles',id,{status:s,updated_at:now});
+  await sbPatch('tiles',id,{status:s,updated_at:now,last_action:`Status → ${statusLabel(s)} · ${currentUser.username}`});
   seen[id]=now; saveSeen();
   const updated={...t,status:s};
   await loadAll();
@@ -662,7 +666,7 @@ async function sendMsg(id){
   const t=tiles.find(x=>x.id===id);
   await sbPost('messages',{tile_id:id,author_username:currentUser.username,body});
   const now=new Date().toISOString();
-  await sbPatch('tiles',id,{updated_at:now});
+  await sbPatch('tiles',id,{updated_at:now,last_action:`💬 ${currentUser.username} commented`});
   seen[id]=now; saveSeen();
   document.getElementById('msgIn').value='';
   await loadAll(); openTile(id);
@@ -679,7 +683,7 @@ async function uploadDoc(id){
   await sbPost('attachments',{tile_id:id,file_name:f.name,file_path:path,uploaded_by_username:currentUser.username});
   const t=tiles.find(x=>x.id===id);
   const now=new Date().toISOString();
-  await sbPatch('tiles',id,{updated_at:now});
+  await sbPatch('tiles',id,{updated_at:now,last_action:`📎 ${currentUser.username} added a document`});
   seen[id]=now; saveSeen();
   await loadAll(); openTile(id);
   notify(t,`Document added to “${t.title}”`,`${currentUser.username} uploaded <b>${esc(f.name)}</b>.`);
@@ -692,7 +696,7 @@ async function deleteDoc(tileId,attId){
   try{ await fetch(`${SB_URL}/storage/v1/object/tile-docs/${encodeURIComponent(d.file_path)}`,{method:'DELETE',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY}}); }catch(e){}
   await sbDelete('attachments',`id=eq.${attId}`);
   const now=new Date().toISOString();
-  await sbPatch('tiles',tileId,{updated_at:now}); seen[tileId]=now; saveSeen();
+  await sbPatch('tiles',tileId,{updated_at:now,last_action:`🗑 ${currentUser.username} removed a document`}); seen[tileId]=now; saveSeen();
   await loadAll(); openTile(tileId);
   toast('Document deleted');
 }
