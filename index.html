@@ -240,6 +240,13 @@ input,textarea,select{font-family:inherit;font-size:15px}
       <button class="nav-item" data-status="done" onclick="setStatusFilter('done',this)">Done <span class="nav-count" id="c-done">0</span></button>
     </div>
 
+    <div class="sidebar-sec">
+      <h4>View</h4>
+      <button class="nav-item active" data-owner="all" onclick="setOwnerFilter('all',this)" title="Every tile">All tiles <span class="nav-count" id="o-all">0</span></button>
+      <button class="nav-item" data-owner="outgoing" onclick="setOwnerFilter('outgoing',this)" title="Tiles you created">Outgoing <span class="nav-count" id="o-out">0</span></button>
+      <button class="nav-item" data-owner="incoming" onclick="setOwnerFilter('incoming',this)" title="Tiles where you're the Person or on the notify list">Incoming <span class="nav-count" id="o-in">0</span></button>
+    </div>
+
     <div class="sidebar-foot">
       <button class="nav-item hidden" id="adminBtn" onclick="openAdmin()" style="margin-bottom:10px">⚙ Admin panel</button>
       <div class="user-chip"><div class="av" id="me-av">U</div><div><div id="me-name" style="font-weight:600;color:#fff"></div><div id="me-role" style="font-size:11px;opacity:.6"></div></div></div>
@@ -298,6 +305,7 @@ function hashPassword(p){const s=p+SALT;let h1=5381,h2=52711;for(let i=0;i<s.len
 
 let currentUser=null, tiles=[], usersCache=[];
 let statusFilter='all';
+let ownerFilter='all';
 
 async function doLogin(){
   const u=val('li-user').trim(), p=val('li-pass');
@@ -357,6 +365,19 @@ async function loadAll(){
 
 // ---------- filters / rendering ----------
 function setStatusFilter(s,el){statusFilter=s;document.querySelectorAll('.nav-item[data-status]').forEach(n=>n.classList.remove('active'));el.classList.add('active');render();}
+function setOwnerFilter(o,el){ownerFilter=o;document.querySelectorAll('.nav-item[data-owner]').forEach(n=>n.classList.remove('active'));el.classList.add('active');render();}
+
+// A tile is "outgoing" if the current user created it.
+function isOutgoing(t){return !!(currentUser&&t.created_by_username&&t.created_by_username.toLowerCase()===currentUser.username.toLowerCase());}
+// A tile is "incoming" if it's addressed to the current user: they are the Person, or their email is on the notify list.
+function isIncoming(t){
+  if(!currentUser)return false;
+  const email=(currentUser.email||'').toLowerCase();
+  const uname=(currentUser.username||'').toLowerCase();
+  const inWatchers=!!email&&(t.watchers||[]).some(w=>(w||'').toLowerCase()===email);
+  const isPerson=!!uname&&(t.person||'').toLowerCase()===uname;
+  return inWatchers||isPerson;
+}
 
 function buildFilterOptions(){
   const jobs=[...new Set(tiles.map(t=>t.job).filter(Boolean))].sort();
@@ -374,6 +395,8 @@ function render(){
   const pf=document.getElementById('personFilter').value;
   let list=tiles.filter(t=>{
     if(statusFilter!=='all'&&t.status!==statusFilter)return false;
+    if(ownerFilter==='outgoing'&&!isOutgoing(t))return false;
+    if(ownerFilter==='incoming'&&!isIncoming(t))return false;
     if(jf&&t.job!==jf)return false;
     if(pf&&t.person!==pf)return false;
     if(q){const hay=(t.title+' '+(t.description||'')+' '+(t.job||'')+' '+(t.person||'')+' '+(t.tags||[]).join(' ')).toLowerCase();if(!hay.includes(q))return false;}
@@ -384,6 +407,9 @@ function render(){
   document.getElementById('c-open').textContent=tiles.filter(t=>t.status==='open').length;
   document.getElementById('c-prog').textContent=tiles.filter(t=>t.status==='in_progress').length;
   document.getElementById('c-done').textContent=tiles.filter(t=>t.status==='done').length;
+  document.getElementById('o-all').textContent=tiles.length;
+  document.getElementById('o-out').textContent=tiles.filter(isOutgoing).length;
+  document.getElementById('o-in').textContent=tiles.filter(isIncoming).length;
 
   const g=document.getElementById('grid');
   if(!list.length){g.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="big">No tiles here yet</div><div>Create one with the “＋ New tile” button.</div></div>`;return;}
