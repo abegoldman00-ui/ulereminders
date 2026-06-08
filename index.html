@@ -446,7 +446,10 @@ async function tileForm(t){
       <div class="field"><label>Description</label><textarea id="f-desc">${isEdit?esc(t.description||''):''}</textarea></div>
       <div class="row2">
         <div class="field"><label>Job / project</label><input id="f-job" value="${isEdit?esc(t.job||''):''}"></div>
-        <div class="field"><label>Person</label><input id="f-person" value="${isEdit?esc(t.person||''):''}"></div>
+        <div class="field"><label>Person</label>
+          <select id="f-person" onchange="onPersonChange()">${personOptions(isEdit?(t.person||''):'')}</select>
+          <div class="hint">Picking a member adds their email to the notify list below.</div>
+        </div>
       </div>
       <div class="row2">
         <div class="field"><label>Status</label><select id="f-status">
@@ -466,6 +469,31 @@ async function tileForm(t){
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" style="width:auto" onclick="saveTile(${isEdit?`'${t.id}'`:'null'})">${isEdit?'Save changes':'Create tile'}</button>
     </div>`);
+}
+
+// Build the Person dropdown from the team (users table). Preserves any legacy free-text value.
+function personOptions(selected){
+  selected=selected||'';
+  const names=usersCache.map(u=>u.username);
+  let opts='<option value="">— none —</option>';
+  if(selected&&!names.some(n=>(n||'').toLowerCase()===selected.toLowerCase())){
+    opts+=`<option value="${esc(selected)}" selected>${esc(selected)} (not a member)</option>`;
+  }
+  opts+=usersCache.map(u=>{
+    const sel=(u.username||'').toLowerCase()===selected.toLowerCase()?'selected':'';
+    return `<option value="${esc(u.username)}" data-email="${esc(u.email||'')}" ${sel}>${esc(u.username)}${u.email?'':' (no email)'}</option>`;
+  }).join('');
+  return opts;
+}
+// When a person is selected, auto-add their email to the notify list so they get notified.
+function onPersonChange(){
+  const sel=document.getElementById('f-person');
+  const opt=sel.options[sel.selectedIndex];
+  const email=opt?(opt.getAttribute('data-email')||''):'';
+  if(!email)return;
+  const w=document.getElementById('f-watchers');
+  const list=splitList(w.value);
+  if(!list.some(e=>e.toLowerCase()===email.toLowerCase())){ list.push(email); w.value=list.join(', '); }
 }
 
 async function saveTile(id){
