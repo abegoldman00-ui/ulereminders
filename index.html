@@ -110,6 +110,11 @@ input,textarea,select{font-family:inherit;font-size:15px}
 .tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--open)}
 .tile[data-s="in_progress"]::before{background:var(--prog)}
 .tile[data-s="done"]::before{background:var(--done)}
+/* due-date color coding (overrides the status bar for open/in-progress tiles) */
+.tile.due-soon::before{background:var(--open)}
+.tile.due-soon{border-color:var(--open-bd);background:linear-gradient(var(--open-bg),var(--surface) 70%)}
+.tile.due-overdue::before{background:#d92d20}
+.tile.due-overdue{border-color:#e8918a;background:linear-gradient(rgba(217,45,32,.10),var(--surface) 70%)}
 .tile-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .tile h3{font-size:17px;font-weight:600;letter-spacing:-.3px;line-height:1.3}
 .status-pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;flex:none;
@@ -480,7 +485,7 @@ function render(){
   const g=document.getElementById('grid');
   if(!list.length){g.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="big">No tiles here yet</div><div>Create one with the “＋ New tile” button.</div></div>`;return;}
   g.innerHTML=list.map(t=>`
-    <div class="tile ${isNew(t)?'isnew':''}" data-s="${t.status}" onclick="openTile('${t.id}')">
+    <div class="tile ${isNew(t)?'isnew':''} ${dueState(t)?'due-'+dueState(t):''}" data-s="${t.status}" onclick="openTile('${t.id}')">
       <div class="tile-top">
         <h3>${esc(t.title)}</h3>
         <div class="tile-badges">
@@ -608,7 +613,7 @@ async function openTile(id){
     sbGet('attachments',`tile_id=eq.${id}&select=*&order=created_at.asc`)
   ]);
   openDocs=docs;
-  const canDelete=currentUser.role==='admin';
+  const canEdit=currentUser.role==='admin'||t.created_by_username===currentUser.username;
   modal(`
     <div class="modal-head">
       <div>
@@ -664,8 +669,8 @@ async function openTile(id){
       <div class="hint">⌘/Ctrl + Enter to send. Everyone on the notify list gets emailed.</div>
     </div>
     <div class="modal-foot">
-      ${canDelete?`<button class="btn btn-ghost" style="width:auto;color:var(--accent)" onclick="deleteTile('${t.id}')">Delete tile</button>`:''}
-      <button class="btn btn-ghost" style="width:auto" onclick="tileForm(${JSON.stringify(t).replace(/"/g,'&quot;')})">Edit details</button>
+      ${canEdit?`<button class="btn btn-ghost" style="width:auto;color:var(--accent)" onclick="deleteTile('${t.id}')">Delete tile</button>`:''}
+      ${canEdit?`<button class="btn btn-ghost" style="width:auto" onclick="tileForm(${JSON.stringify(t).replace(/"/g,'&quot;')})">Edit details</button>`:''}
       <button class="btn btn-primary" style="width:auto" onclick="closeModal()">Done</button>
     </div>`);
 }
