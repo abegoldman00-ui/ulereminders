@@ -1,11 +1,14 @@
 // ============================================================
-// ULEReminders — send-update Edge Function
+// ULEReminders — send-update Edge Function (Gmail SMTP)
 // Deploy with: supabase functions deploy send-update --no-verify-jwt
-// Set secret:   supabase secrets set RESEND_API_KEY=re_xxx
-//               supabase secrets set FROM_EMAIL="ULEReminders <reminders@yourdomain.com>"
+// Secrets:
+//   supabase secrets set GMAIL_USER=ulereminders@gmail.com
+//   supabase secrets set GMAIL_APP_PASSWORD="xxxxxxxxxxxxxxxx"   (16-char app password, no spaces)
+//   supabase secrets set FROM_EMAIL="ULEReminders <ulereminders@gmail.com>"
 // ============================================================
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,22 +28,31 @@ serve(async (req) => {
       });
     }
 
-    const key = Deno.env.get("RESEND_API_KEY");
-    const from = Deno.env.get("FROM_EMAIL") || "ULEReminders <onboarding@resend.dev>";
-    if (!key) throw new Error("RESEND_API_KEY not set");
+    const user = Deno.env.get("GMAIL_USER");
+    const pass = (Deno.env.get("GMAIL_APP_PASSWORD") || "").replace(/\s+/g, "");
+    const from = Deno.env.get("FROM_EMAIL") || `ULEReminders <${user}>`;
+    if (!user || !pass) throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD not set");
 
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${key}`,
-        "Content-Type": "application/json",
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.gmail.com",
+        port: 465,
+        tls: true,
+        auth: { username: user, password: pass },
       },
-      body: JSON.stringify({ from, to: recipients, subject, html }),
     });
 
-    const data = await r.json();
-    return new Response(JSON.stringify(data), {
-      status: r.ok ? 200 : 500,
+    await client.send({
+      from,
+      to: recipients,
+      subject: subject || "(no subject)",
+      content: "This message requires an HTML-capable email client.",
+      html: html || "",
+    });
+    await client.close();
+
+    return new Response(JSON.stringify({ sent: recipients.length }), {
+      status: 200,
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (e) {
